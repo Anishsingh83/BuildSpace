@@ -21,6 +21,7 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-5">
+          <NavLink to="/editor" className={linkClass}>Editor</NavLink>
           <NavLink to="/gallery" className={linkClass}>Gallery</NavLink>
           <NavLink to="/dashboard" className={linkClass}>Dashboard</NavLink>
           <NavLink to="/login" className={linkClass}>Log in</NavLink>
@@ -42,3 +43,4 @@ export default function Navbar() {
     </header>
   )
 }
+
