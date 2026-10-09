@@ -1,8 +1,61 @@
-﻿export default function Login() {
+﻿import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
+import Input from '../components/common/Input'
+import { Button } from '../components/common/Button'
+import { validateEmail } from '../utils/validation'
+
+export default function Login() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
+  const [notice, setNotice] = useState('')
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    const next = {
+      email: validateEmail(email),
+      password: password ? undefined : 'Password is required.',
+    }
+    setErrors(next)
+    setNotice('')
+    if (next.email || next.password) return
+    setNotice('Form is valid. The backend is not connected yet.')
+  }
+
   return (
-    <div>
-      <h1 className="text-3xl font-bold tracking-tight">Login</h1>
-      <p className="mt-2 text-slate-600 dark:text-slate-400">Log in to your account.</p>
+    <div className="mx-auto max-w-sm">
+      <h1 className="text-2xl font-bold tracking-tight">Log in</h1>
+      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+        Welcome back to BuildSpace.
+      </p>
+
+      <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
+        <Input
+          label="Email"
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          error={errors.email}
+        />
+        <Input
+          label="Password"
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          error={errors.password}
+        />
+        <Button type="submit" className="w-full">Log in</Button>
+        {notice && <p className="text-sm text-emerald-500">{notice}</p>}
+      </form>
+
+      <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
+        No account yet?{' '}
+        <Link to="/signup" className="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+          Sign up
+        </Link>
+      </p>
     </div>
   )
 }
