@@ -6,14 +6,26 @@ import EditorTabs from '../components/editor/EditorTabs'
 import EditorTopBar from '../components/editor/EditorTopBar'
 import ConsolePanel, { type LogEntry } from '../components/editor/ConsolePanel'
 import ChatPanel from '../components/editor/ChatPanel'
+import NameDialog from '../components/editor/NameDialog'
+import ConfirmDialog from '../components/common/ConfirmDialog'
 import PreviewPane from '../components/preview/PreviewPane'
 import { languageFor, starterFiles, type EditorFile } from '../types/editor'
 import { useTheme } from '../contexts/ThemeContext'
+import { isUnder, remapPath, validateNewPath, validateRename } from '../utils/paths'
+
+type DialogState =
+  | { kind: 'newFile'; folder: string }
+  | { kind: 'newFolder'; folder: string }
+  | { kind: 'rename'; path: string; isFolder: boolean }
+  | { kind: 'delete'; path: string; isFolder: boolean }
+  | { kind: 'closeDirty'; path: string }
+  | null
 
 export default function EditorPage() {
   const { theme } = useTheme()
   const [projectName, setProjectName] = useState('Untitled project')
   const [files, setFiles] = useState<EditorFile[]>(starterFiles)
+  const [emptyFolders, setEmptyFolders] = useState<string[]>([])
   const [savedContent, setSavedContent] = useState<Record<string, string>>(
     () => Object.fromEntries(starterFiles.map((f) => [f.path, f.content])),
   )
@@ -21,6 +33,7 @@ export default function EditorPage() {
   const [activePath, setActivePath] = useState(starterFiles[0].path)
   const [chatOpen, setChatOpen] = useState(true)
   const [logs, setLogs] = useState<LogEntry[]>([])
+  const [dialog, setDialog] = useState<DialogState>(null)
   const nextLogId = useRef(0)
 
   const handleLog = useCallback((entry: Omit<LogEntry, 'id'>) => {
@@ -28,41 +41,60 @@ export default function EditorPage() {
   }, [])
   const handleReset = useCallback(() => setLogs([]), [])
 
+  const filePaths = files.map((f) => f.path)
   const activeFile = files.find((f) => f.path === activePath)
   const dirtyPaths = new Set(
     files.filter((f) => f.content !== savedContent[f.path]).map((f) => f.path),
   )
+  const closeDialog = () => setDialog(null)
 
   function openFile(path: string) {
     setOpenPaths((p) => (p.includes(path) ? p : [...p, path]))
     setActivePath(path)
   }
 
-  function closeFile(path: string) {
-    if (dirtyPaths.has(path) && !window.confirm(`${path} has unsaved changes. Close anyway?`)) {
-      return
-    }
+  function closeTab(path: string) {
     const remaining = openPaths.filter((p) => p !== path)
     setOpenPaths(remaining)
-    if (path === activePath && remaining.length > 0) {
-      setActivePath(remaining[remaining.length - 1])
-    }
+    if (path === activePath) setActivePath(remaining[remaining.length - 1] ?? '')
   }
 
-  function createFile() {
-    const name = window.prompt('New file name (for example about.html):')?.trim()
-    if (!name) return
-    if (!/^[A-Za-z0-9_-][A-Za-z0-9._-]{0,63}$/.test(name)) {
-      window.alert('Use letters, numbers, dots, hyphens or underscores (max 64 characters).')
-      return
-    }
-    if (files.some((f) => f.path === name)) {
-      window.alert(`${name} already exists.`)
-      return
-    }
-    setFiles((fs) => [...fs, { path: name, content: '' }])
-    setSavedContent((s) => ({ ...s, [name]: '' }))
-    openFile(name)
+  function requestCloseTab(path: string) {
+    if (dirtyPaths.has(path)) setDialog({ kind: 'closeDirty', path })
+    else closeTab(path)
+  }
+
+  function createFile(path: string) {
+    setFiles((fs) => [...fs, { path, content: '' }])
+    setSavedContent((s) => ({ ...s, [path]: '' }))
+    openFile(path)
+  }
+
+  function createFolder(path: string) {
+    setEmptyFolders((f) => [...f, path])
+  }
+
+  function renameItem(oldPath: string, newPath: string) {
+    setFiles((fs) =>
+      fs.map((f) => (isUnder(f.path, oldPath) ? { ...f, path: remapPath(f.path, oldPath, newPath) } : f)),
+    )
+    setSavedContent((s) =>
+      Object.fromEntries(Object.entries(s).map(([p, c]) => [remapPath(p, oldPath, newPath), c])),
+    )
+    setEmptyFolders((fs) => fs.map((f) => remapPath(f, oldPath, newPath)))
+    setOpenPaths((ps) => ps.map((p) => remapPath(p, oldPath, newPath)))
+    setActivePath((p) => remapPath(p, oldPath, newPath))
+  }
+
+  function deleteItem(path: string) {
+    setFiles((fs) => fs.filter((f) => !isUnder(f.path, path)))
+    setSavedContent((s) =>
+      Object.fromEntries(Object.entries(s).filter(([p]) => !isUnder(p, path))),
+    )
+    setEmptyFolders((fs) => fs.filter((f) => !isUnder(f, path)))
+    const remaining = openPaths.filter((p) => !isUnder(p, path))
+    setOpenPaths(remaining)
+    if (isUnder(activePath, path)) setActivePath(remaining[remaining.length - 1] ?? '')
   }
 
   function updateContent(value: string | undefined) {
@@ -111,9 +143,13 @@ export default function EditorPage() {
 
         <FileExplorer
           files={files}
+          emptyFolders={emptyFolders}
           activePath={activePath}
           onSelect={openFile}
-          onCreate={createFile}
+          onNewFile={(folder) => setDialog({ kind: 'newFile', folder })}
+          onNewFolder={(folder) => setDialog({ kind: 'newFolder', folder })}
+          onRename={(path, isFolder) => setDialog({ kind: 'rename', path, isFolder })}
+          onDelete={(path, isFolder) => setDialog({ kind: 'delete', path, isFolder })}
         />
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -123,7 +159,7 @@ export default function EditorPage() {
               activePath={activePath}
               dirtyPaths={dirtyPaths}
               onSelect={setActivePath}
-              onClose={closeFile}
+              onClose={requestCloseTab}
             />
             <div className="min-h-0 flex-1">
               {activeFile ? (
@@ -153,6 +189,84 @@ export default function EditorPage() {
 
         {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
       </div>
+
+      {dialog?.kind === 'newFile' && (
+        <NameDialog
+          title={dialog.folder ? `New file in ${dialog.folder}/` : 'New file'}
+          label="File path"
+          initialValue={dialog.folder ? dialog.folder + '/' : ''}
+          submitLabel="Create"
+          validate={(v) => validateNewPath(v, filePaths, emptyFolders)}
+          onSubmit={(v) => {
+            createFile(v)
+            closeDialog()
+          }}
+          onClose={closeDialog}
+        />
+      )}
+
+      {dialog?.kind === 'newFolder' && (
+        <NameDialog
+          title={dialog.folder ? `New folder in ${dialog.folder}/` : 'New folder'}
+          label="Folder path"
+          initialValue={dialog.folder ? dialog.folder + '/' : ''}
+          submitLabel="Create"
+          validate={(v) => validateNewPath(v, filePaths, emptyFolders)}
+          onSubmit={(v) => {
+            createFolder(v)
+            closeDialog()
+          }}
+          onClose={closeDialog}
+        />
+      )}
+
+      {dialog?.kind === 'rename' && (
+        <NameDialog
+          title={dialog.isFolder ? 'Rename or move folder' : 'Rename or move file'}
+          label="New path"
+          initialValue={dialog.path}
+          submitLabel="Rename"
+          validate={(v) =>
+            validateRename(dialog.path, v, dialog.isFolder, filePaths, emptyFolders)
+          }
+          onSubmit={(v) => {
+            renameItem(dialog.path, v)
+            closeDialog()
+          }}
+          onClose={closeDialog}
+        />
+      )}
+
+      {dialog?.kind === 'delete' && (
+        <ConfirmDialog
+          title={dialog.isFolder ? 'Delete folder?' : 'Delete file?'}
+          message={
+            dialog.isFolder
+              ? `Delete the folder "${dialog.path}" and everything inside it? This cannot be undone.`
+              : `Delete "${dialog.path}"? This cannot be undone.`
+          }
+          confirmLabel="Delete"
+          danger
+          onConfirm={() => {
+            deleteItem(dialog.path)
+            closeDialog()
+          }}
+          onClose={closeDialog}
+        />
+      )}
+
+      {dialog?.kind === 'closeDirty' && (
+        <ConfirmDialog
+          title="Close with unsaved changes?"
+          message={`"${dialog.path}" has unsaved changes. They will be lost if you leave this page.`}
+          confirmLabel="Close anyway"
+          onConfirm={() => {
+            closeTab(dialog.path)
+            closeDialog()
+          }}
+          onClose={closeDialog}
+        />
+      )}
     </div>
   )
 }
