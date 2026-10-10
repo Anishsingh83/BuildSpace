@@ -33,7 +33,6 @@ export default function Navbar() {
           {user ? (
             <>
               <NavLink to="/dashboard" className={linkClass}>Dashboard</NavLink>
-              <NavLink to="/editor" className={linkClass}>Editor</NavLink>
               <span className="text-sm text-slate-500">@{user.username}</span>
               <button
                 onClick={handleLogout}
@@ -66,3 +65,4 @@ export default function Navbar() {
     </header>
   )
 }
+

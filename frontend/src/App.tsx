@@ -1,4 +1,4 @@
-﻿import { Route, Routes } from 'react-router-dom'
+﻿import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/common/Layout'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import Landing from './pages/Landing'
@@ -13,7 +13,8 @@ export default function App() {
   return (
     <Routes>
       <Route element={<ProtectedRoute />}>
-        <Route path="/editor" element={<EditorPage />} />
+        <Route path="/editor/:projectId" element={<EditorPage />} />
+        <Route path="/editor" element={<Navigate to="/dashboard" replace />} />
       </Route>
       <Route element={<Layout />}>
         <Route path="/" element={<Landing />} />

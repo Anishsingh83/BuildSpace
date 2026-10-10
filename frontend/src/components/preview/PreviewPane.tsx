@@ -1,5 +1,5 @@
 ﻿import { useEffect, useRef, useState } from 'react'
-import { Monitor, RefreshCw, Smartphone, Tablet } from 'lucide-react'
+import { Maximize2, Minimize2, Monitor, RefreshCw, Smartphone, Tablet } from 'lucide-react'
 import type { EditorFile } from '../../types/editor'
 import { buildSrcDoc } from '../../utils/buildPreview'
 import type { LogEntry, LogLevel } from '../editor/ConsolePanel'
@@ -13,9 +13,11 @@ interface Props {
   files: EditorFile[]
   onLog: (entry: Omit<LogEntry, 'id'>) => void
   onReset: () => void
+  maximized: boolean
+  onToggleMaximize: () => void
 }
 
-export default function PreviewPane({ files, onLog, onReset }: Props) {
+export default function PreviewPane({ files, onLog, onReset, maximized, onToggleMaximize }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [srcDoc, setSrcDoc] = useState(() => buildSrcDoc(files))
   const [reloadKey, setReloadKey] = useState(0)
@@ -49,6 +51,7 @@ export default function PreviewPane({ files, onLog, onReset }: Props) {
     setReloadKey((k) => k + 1)
   }
 
+  const iconBtn = 'rounded p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
   const deviceButton = (d: Device, Icon: typeof Monitor, label: string) => (
     <button
       onClick={() => setDevice(d)}
@@ -64,19 +67,22 @@ export default function PreviewPane({ files, onLog, onReset }: Props) {
   )
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-slate-200 px-3 py-1.5 dark:border-slate-800">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex h-9 shrink-0 items-center justify-between border-b border-slate-200 px-3 dark:border-slate-800">
         <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Preview</span>
         <div className="flex items-center gap-1">
           {deviceButton('desktop', Monitor, 'Desktop size')}
           {deviceButton('tablet', Tablet, 'Tablet size')}
           {deviceButton('mobile', Smartphone, 'Mobile size')}
-          <button
-            onClick={refresh}
-            aria-label="Refresh preview"
-            className="rounded p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-          >
+          <button onClick={refresh} aria-label="Refresh preview" className={iconBtn}>
             <RefreshCw className="h-4 w-4" />
+          </button>
+          <button
+            onClick={onToggleMaximize}
+            aria-label={maximized ? 'Restore preview size' : 'Maximize preview'}
+            className={iconBtn}
+          >
+            {maximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
         </div>
       </div>
