@@ -1,10 +1,13 @@
 ﻿from typing import Literal
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
 from app.core.limiter import limiter
 from app.db.session import get_db
+from app.models import User
+from app.schemas.projects import ProjectDetail
 from app.schemas.public import PublicProjectDetail, PublicProjectSummary
 from app.services import public as public_service
 
@@ -37,4 +40,20 @@ def get_project(
     db: Session = Depends(get_db),
 ) -> PublicProjectDetail:
     response.headers["Cache-Control"] = "no-store"
-    return PublicProjectDetail.from_project(public_service.get_public_project(db, slug))
+    project = public_service.get_public_project(db, slug)
+    parent = public_service.public_parent(db, project)
+    return PublicProjectDetail.from_project(project, parent)
+
+
+@router.post(
+    "/projects/{slug}/fork", response_model=ProjectDetail, status_code=status.HTTP_201_CREATED
+)
+@limiter.limit("20/minute")
+def fork_project(
+    request: Request,
+    slug: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ProjectDetail:
+    fork = public_service.fork_project(db, user, slug)
+    return ProjectDetail.from_project(fork)

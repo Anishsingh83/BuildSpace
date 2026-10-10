@@ -1,11 +1,12 @@
 ﻿import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import Editor from '@monaco-editor/react'
-import { Check, Code2, Copy, Moon, Sun } from 'lucide-react'
+import { Check, Code2, Copy, GitFork, Moon, Sun } from 'lucide-react'
 import PreviewPane from '../components/preview/PreviewPane'
+import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
 import { ApiError } from '../services/api'
-import { getPublicProject } from '../services/public'
+import { forkPublicProject, getPublicProject } from '../services/public'
 import { languageFor } from '../types/editor'
 import type { PublicProjectDetail } from '../types/public'
 
@@ -69,12 +70,16 @@ export default function PublicProject() {
 
 function Viewer({ project }: { project: PublicProjectDetail }) {
   const { theme, toggleTheme } = useTheme()
+  const { user, loading: authLoading } = useAuth()
+  const navigate = useNavigate()
   const firstPath =
     project.files.find((f) => f.path === 'index.html')?.path ?? project.files[0]?.path ?? ''
   const [activePath, setActivePath] = useState(firstPath)
   const [mobileTab, setMobileTab] = useState<'code' | 'preview'>('preview')
   const [previewMax, setPreviewMax] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [forking, setForking] = useState(false)
+  const [forkError, setForkError] = useState('')
   const active = project.files.find((f) => f.path === activePath)
 
   async function copyLink() {
@@ -85,6 +90,22 @@ function Viewer({ project }: { project: PublicProjectDetail }) {
       window.setTimeout(() => setCopied(false), 2000)
     } catch {
       window.prompt('Copy this link:', link)
+    }
+  }
+
+  async function handleFork() {
+    if (!user) {
+      navigate('/login', { state: { from: `/p/${project.slug}` } })
+      return
+    }
+    setForking(true)
+    setForkError('')
+    try {
+      const copy = await forkPublicProject(project.slug)
+      navigate(`/editor/${copy.id}`)
+    } catch (e) {
+      setForkError(e instanceof Error ? e.message : 'Could not fork this project.')
+      setForking(false)
     }
   }
 
@@ -102,6 +123,8 @@ function Viewer({ project }: { project: PublicProjectDetail }) {
       {label}
     </button>
   )
+  const outlineBtn =
+    'inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:hover:bg-slate-800'
 
   return (
     <div className="flex h-screen flex-col bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -112,16 +135,39 @@ function Viewer({ project }: { project: PublicProjectDetail }) {
           </Link>
           <div className="min-w-0">
             <h1 className="truncate text-sm font-semibold">{project.title}</h1>
-            <p className="truncate text-xs text-slate-500">by @{project.author}</p>
+            <p className="truncate text-xs text-slate-500">
+              by @{project.author}
+              {project.forked_from && (
+                <>
+                  {' · forked from '}
+                  <Link
+                    to={`/p/${project.forked_from.slug}`}
+                    className="text-indigo-600 hover:underline dark:text-indigo-400"
+                  >
+                    @{project.forked_from.author} / {project.forked_from.title}
+                  </Link>
+                </>
+              )}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {forkError && (
+            <span role="alert" className="hidden max-w-xs truncate text-xs text-red-500 md:block" title={forkError}>
+              {forkError}
+            </span>
+          )}
           <button
-            onClick={() => void copyLink()}
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+            onClick={() => void handleFork()}
+            disabled={forking || authLoading}
+            className={outlineBtn}
           >
+            <GitFork className="h-4 w-4" />
+            {forking ? 'Forking...' : 'Fork'}
+          </button>
+          <button onClick={() => void copyLink()} className={outlineBtn}>
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            {copied ? 'Copied' : 'Copy link'}
+            <span className="hidden sm:inline">{copied ? 'Copied' : 'Copy link'}</span>
           </button>
           <Link
             to="/gallery"

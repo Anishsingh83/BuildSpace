@@ -1,8 +1,12 @@
 ﻿import { api } from './api'
+import type { ProjectDetail } from '../types/project'
 import type { PublicProjectDetail, PublicProjectSummary } from '../types/public'
 
 export const getPublicProject = (slug: string) =>
   api<PublicProjectDetail>(`/public/projects/${encodeURIComponent(slug)}`)
+
+export const forkPublicProject = (slug: string) =>
+  api<ProjectDetail>(`/public/projects/${encodeURIComponent(slug)}/fork`, { method: 'POST' })
 
 export function listPublicProjects(params: {
   q: string

@@ -50,7 +50,7 @@ def test_response_does_not_leak_private_fields(client):
     project = make(client, h, "Demo")
     response = client.get(f"{BASE}/{project['slug']}")
     assert set(response.json()) == {
-        "slug", "title", "description", "author", "created_at", "updated_at", "files",
+        "slug", "title", "description", "author", "created_at", "updated_at", "files", "forked_from",
     }
     assert "alice@example.com" not in response.text
     assert project["id"] not in response.text
@@ -142,3 +142,4 @@ def test_public_endpoints_are_read_only(client):
     assert client.put(url, json={}).status_code == 405
     assert client.patch(url, json={"title": "Hacked"}).status_code == 405
     assert client.delete(url).status_code == 405
+
