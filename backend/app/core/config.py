@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     app_name: str = "BuildSpace API"
     environment: str = "development"
     cors_origins: list[str] = ["http://localhost:5173"]
+    database_url: str = ""
 
 
 @lru_cache
