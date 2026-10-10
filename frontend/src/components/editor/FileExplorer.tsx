@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react'
+﻿import { useMemo, useRef, useState } from 'react'
 import {
   ChevronDown,
   ChevronRight,
@@ -6,9 +6,11 @@ import {
   FilePlus,
   Folder,
   FolderPlus,
+  PanelLeftClose,
   Pencil,
   Trash2,
 } from 'lucide-react'
+import Splitter from '../common/Splitter'
 import { buildTree, type TreeNode } from '../../utils/paths'
 import type { EditorFile } from '../../types/editor'
 
@@ -24,7 +26,15 @@ interface Props extends Actions {
   files: EditorFile[]
   emptyFolders: string[]
   activePath: string
+  width: number
+  open: boolean
+  onResize: (width: number) => void
+  onClose: () => void
 }
+
+const MIN_WIDTH = 140
+const MAX_WIDTH = 480
+const clamp = (v: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, v))
 
 const iconBtn = 'rounded p-1 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
 const reveal = 'flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
@@ -118,8 +128,18 @@ function TreeItem({ node, depth, activePath, collapsed, onToggle, ...actions }: 
   )
 }
 
-export default function FileExplorer({ files, emptyFolders, activePath, ...actions }: Props) {
+export default function FileExplorer({
+  files,
+  emptyFolders,
+  activePath,
+  width,
+  open,
+  onResize,
+  onClose,
+  ...actions
+}: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const asideRef = useRef<HTMLElement>(null)
   const tree = useMemo(
     () => buildTree(files.map((f) => f.path), emptyFolders),
     [files, emptyFolders],
@@ -134,36 +154,56 @@ export default function FileExplorer({ files, emptyFolders, activePath, ...actio
     })
   }
 
+  if (!open) return null
+
   return (
-    <aside className="w-56 shrink-0 overflow-y-auto border-r border-slate-200 dark:border-slate-800">
-      <div className="flex items-center justify-between px-3 py-2">
-        <p className="text-sm font-semibold">Explorer</p>
-        <div className="flex">
-          <button onClick={() => actions.onNewFile('')} aria-label="New file" className={iconBtn}>
-            <FilePlus className="h-4 w-4" />
-          </button>
-          <button onClick={() => actions.onNewFolder('')} aria-label="New folder" className={iconBtn}>
-            <FolderPlus className="h-4 w-4" />
-          </button>
+    <>
+      <aside
+        ref={asideRef}
+        style={{ width }}
+        className="shrink-0 overflow-y-auto overflow-x-hidden"
+      >
+        <div className="flex items-center justify-between px-3 py-2">
+          <p className="truncate text-sm font-semibold">Explorer</p>
+          <div className="flex shrink-0">
+            <button onClick={() => actions.onNewFile('')} aria-label="New file" className={iconBtn}>
+              <FilePlus className="h-4 w-4" />
+            </button>
+            <button onClick={() => actions.onNewFolder('')} aria-label="New folder" className={iconBtn}>
+              <FolderPlus className="h-4 w-4" />
+            </button>
+            <button onClick={onClose} aria-label="Hide explorer" className={iconBtn}>
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
+          </div>
         </div>
-      </div>
-      {tree.length === 0 ? (
-        <p className="px-3 py-2 text-xs text-slate-500">No files yet. Use the buttons above to add one.</p>
-      ) : (
-        <ul>
-          {tree.map((node) => (
-            <TreeItem
-              key={node.path}
-              node={node}
-              depth={0}
-              activePath={activePath}
-              collapsed={collapsed}
-              onToggle={toggle}
-              {...actions}
-            />
-          ))}
-        </ul>
-      )}
-    </aside>
+        {tree.length === 0 ? (
+          <p className="px-3 py-2 text-xs text-slate-500">No files yet. Use the buttons above to add one.</p>
+        ) : (
+          <ul>
+            {tree.map((node) => (
+              <TreeItem
+                key={node.path}
+                node={node}
+                depth={0}
+                activePath={activePath}
+                collapsed={collapsed}
+                onToggle={toggle}
+                {...actions}
+              />
+            ))}
+          </ul>
+        )}
+      </aside>
+      <Splitter
+        direction="col"
+        label="Resize explorer"
+        onMove={(x) => {
+          const left = asideRef.current?.getBoundingClientRect().left ?? 0
+          onResize(clamp(x - left))
+        }}
+        onNudge={(step) => onResize(clamp(width - step * 8))}
+      />
+    </>
   )
 }

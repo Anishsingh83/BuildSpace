@@ -86,6 +86,8 @@ function Workspace({ project }: { project: ProjectDetail }) {
   const [openPaths, setOpenPaths] = useState<string[]>(firstPath ? [firstPath] : [])
   const [activePath, setActivePath] = useState(firstPath)
   const [chatOpen, setChatOpen] = useState(false)
+  const [explorerOpen, setExplorerOpen] = useState(true)
+  const [explorerWidth, setExplorerWidth] = useState(224)
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [dialog, setDialog] = useState<DialogState>(null)
   const [saving, setSaving] = useState(false)
@@ -238,6 +240,10 @@ function Workspace({ project }: { project: ProjectDetail }) {
     <div
       className="flex h-screen flex-col bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100"
       onKeyDown={(e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+          e.preventDefault()
+          setExplorerOpen((o) => !o)
+        }
         if ((e.ctrlKey || e.metaKey) && e.key === 's') {
           e.preventDefault()
           void save()
@@ -260,8 +266,9 @@ function Workspace({ project }: { project: ProjectDetail }) {
       <div className="flex min-h-0 flex-1">
         <nav className="flex w-12 shrink-0 flex-col items-center gap-2 border-r border-slate-200 py-2 dark:border-slate-800">
           <button
-            aria-label="Files"
-            className="rounded-md bg-indigo-100 p-2 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
+            aria-label="Toggle explorer"
+            onClick={() => setExplorerOpen((o) => !o)}
+            className={`rounded-md p-2 hover:bg-slate-100 dark:hover:bg-slate-800 ${explorerOpen ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}
           >
             <Files className="h-5 w-5" />
           </button>
@@ -279,6 +286,10 @@ function Workspace({ project }: { project: ProjectDetail }) {
         <FileExplorer
           files={files}
           emptyFolders={emptyFolders}
+          width={explorerWidth}
+          open={explorerOpen}
+          onResize={setExplorerWidth}
+          onClose={() => setExplorerOpen(false)}
           activePath={activePath}
           onSelect={openFile}
           onNewFile={(folder) => setDialog({ kind: 'newFile', folder })}
@@ -463,4 +474,5 @@ function Workspace({ project }: { project: ProjectDetail }) {
     </div>
   )
 }
+
 
