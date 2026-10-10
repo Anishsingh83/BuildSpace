@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 import Gallery from './pages/Gallery'
 import NotFound from './pages/NotFound'
 import EditorPage from './pages/EditorPage'
+import PublicProject from './pages/PublicProject'
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="/editor/:projectId" element={<EditorPage />} />
         <Route path="/editor" element={<Navigate to="/dashboard" replace />} />
       </Route>
+      <Route path="/p/:slug" element={<PublicProject />} />
       <Route element={<Layout />}>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />

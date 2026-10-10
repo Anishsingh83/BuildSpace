@@ -252,6 +252,7 @@ function Workspace({ project }: { project: ProjectDetail }) {
         saving={saving}
         onSave={() => void save()}
         visibility={visibility}
+        slug={project.slug}
         onToggleVisibility={toggleVisibility}
         error={apiError}
       />
@@ -450,7 +451,7 @@ function Workspace({ project }: { project: ProjectDetail }) {
       {dialog?.kind === 'makePublic' && (
         <ConfirmDialog
           title="Make project public?"
-          message="Anyone with the link will be able to view this project's code. Public pages are not available yet, so nothing is exposed today."
+          message="Anyone with the link can read this project's code and run its preview, and it will appear in the public gallery."
           confirmLabel="Make public"
           onConfirm={() => {
             void applyVisibility('public')
@@ -462,3 +463,4 @@ function Workspace({ project }: { project: ProjectDetail }) {
     </div>
   )
 }
+

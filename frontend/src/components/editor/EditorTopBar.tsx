@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Code2, Globe, Lock, Moon, Save, Sun } from 'lucide-react'
+import { Check, Code2, Copy, ExternalLink, Globe, Lock, Moon, Save, Sun } from 'lucide-react'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Visibility } from '../../types/project'
@@ -13,8 +13,12 @@ interface Props {
   onSave: () => void
   visibility: Visibility
   onToggleVisibility: () => void
+  slug: string
   error: string
 }
+
+const outlineBtn =
+  'inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800'
 
 export default function EditorTopBar({
   projectName,
@@ -24,17 +28,30 @@ export default function EditorTopBar({
   onSave,
   visibility,
   onToggleVisibility,
+  slug,
   error,
 }: Props) {
   const { theme, toggleTheme } = useTheme()
   const { user } = useAuth()
   // The parent remounts this component (key) whenever the saved name changes.
   const [draft, setDraft] = useState(projectName)
+  const [copied, setCopied] = useState(false)
 
   function commitName() {
     const trimmed = draft.trim()
     if (!trimmed) setDraft(projectName)
     else if (trimmed !== projectName) onRename(trimmed)
+  }
+
+  async function copyLink() {
+    const link = `${window.location.origin}/p/${slug}`
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      window.prompt('Copy this link:', link)
+    }
   }
 
   const isPublic = visibility === 'public'
@@ -73,10 +90,24 @@ export default function EditorTopBar({
             {error}
           </span>
         )}
-        <button
-          onClick={onToggleVisibility}
-          className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
-        >
+        {isPublic && (
+          <>
+            <button onClick={() => void copyLink()} className={outlineBtn}>
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              <span className="hidden sm:inline">{copied ? 'Copied' : 'Copy link'}</span>
+            </button>
+            <a
+              href={`/p/${slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open public page in a new tab"
+              className={outlineBtn}
+            >
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </>
+        )}
+        <button onClick={onToggleVisibility} className={outlineBtn}>
           {isPublic ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
           {isPublic ? 'Public' : 'Private'}
         </button>
