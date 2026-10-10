@@ -1,6 +1,7 @@
-﻿import { Link, NavLink } from 'react-router-dom'
-import { Moon, Sun, Code2 } from 'lucide-react'
+﻿import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { Code2, LogOut, Moon, Sun } from 'lucide-react'
 import { useTheme } from '../../contexts/ThemeContext'
+import { useAuth } from '../../contexts/AuthContext'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `text-sm font-medium transition-colors ${
@@ -11,6 +12,13 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 
 export default function Navbar() {
   const { theme, toggleTheme } = useTheme()
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+
+  async function handleLogout() {
+    await logout()
+    navigate('/')
+  }
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
@@ -21,16 +29,31 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-5">
-          <NavLink to="/editor" className={linkClass}>Editor</NavLink>
           <NavLink to="/gallery" className={linkClass}>Gallery</NavLink>
-          <NavLink to="/dashboard" className={linkClass}>Dashboard</NavLink>
-          <NavLink to="/login" className={linkClass}>Log in</NavLink>
-          <Link
-            to="/signup"
-            className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500"
-          >
-            Sign up
-          </Link>
+          {user ? (
+            <>
+              <NavLink to="/dashboard" className={linkClass}>Dashboard</NavLink>
+              <NavLink to="/editor" className={linkClass}>Editor</NavLink>
+              <span className="text-sm text-slate-500">@{user.username}</span>
+              <button
+                onClick={handleLogout}
+                className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+              >
+                <LogOut className="h-4 w-4" />
+                Log out
+              </button>
+            </>
+          ) : (
+            <>
+              <NavLink to="/login" className={linkClass}>Log in</NavLink>
+              <Link
+                to="/signup"
+                className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500"
+              >
+                Sign up
+              </Link>
+            </>
+          )}
           <button
             onClick={toggleTheme}
             aria-label="Toggle theme"
@@ -43,4 +66,3 @@ export default function Navbar() {
     </header>
   )
 }
-

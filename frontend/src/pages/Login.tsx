@@ -1,33 +1,47 @@
 ﻿import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import Input from '../components/common/Input'
 import { Button } from '../components/common/Button'
+import { useAuth } from '../contexts/AuthContext'
 import { validateEmail } from '../utils/validation'
 
 export default function Login() {
+  const { login } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const redirectTo = (location.state as { from?: string } | null)?.from ?? '/dashboard'
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
-  const [notice, setNotice] = useState('')
+  const [serverError, setServerError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     const next = {
       email: validateEmail(email),
       password: password ? undefined : 'Password is required.',
     }
     setErrors(next)
-    setNotice('')
+    setServerError('')
     if (next.email || next.password) return
-    setNotice('Form is valid. The backend is not connected yet.')
+
+    setSubmitting(true)
+    try {
+      await login(email.trim(), password)
+      navigate(redirectTo, { replace: true })
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : 'Login failed.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
     <div className="mx-auto max-w-sm">
       <h1 className="text-2xl font-bold tracking-tight">Log in</h1>
-      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-        Welcome back to BuildSpace.
-      </p>
+      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Welcome back to BuildSpace.</p>
 
       <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
         <Input
@@ -46,8 +60,14 @@ export default function Login() {
           onChange={(e) => setPassword(e.target.value)}
           error={errors.password}
         />
-        <Button type="submit" className="w-full">Log in</Button>
-        {notice && <p className="text-sm text-emerald-500">{notice}</p>}
+        <Button type="submit" className="w-full" disabled={submitting}>
+          {submitting ? 'Logging in...' : 'Log in'}
+        </Button>
+        {serverError && (
+          <p role="alert" className="text-sm text-red-500">
+            {serverError}
+          </p>
+        )}
       </form>
 
       <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">

@@ -1,7 +1,8 @@
 ﻿import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import Input from '../components/common/Input'
 import { Button } from '../components/common/Button'
+import { useAuth } from '../contexts/AuthContext'
 import { validateEmail, validatePassword, validateUsername } from '../utils/validation'
 
 interface Errors {
@@ -12,14 +13,18 @@ interface Errors {
 }
 
 export default function Signup() {
+  const { register } = useAuth()
+  const navigate = useNavigate()
+
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [errors, setErrors] = useState<Errors>({})
-  const [notice, setNotice] = useState('')
+  const [serverError, setServerError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     const next: Errors = {
       username: validateUsername(username),
@@ -28,9 +33,18 @@ export default function Signup() {
       confirm: confirm === password ? undefined : 'Passwords do not match.',
     }
     setErrors(next)
-    setNotice('')
+    setServerError('')
     if (Object.values(next).some(Boolean)) return
-    setNotice('Form is valid. The backend is not connected yet.')
+
+    setSubmitting(true)
+    try {
+      await register(username.trim(), email.trim(), password)
+      navigate('/dashboard', { replace: true })
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : 'Sign up failed.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -72,8 +86,14 @@ export default function Signup() {
           onChange={(e) => setConfirm(e.target.value)}
           error={errors.confirm}
         />
-        <Button type="submit" className="w-full">Create account</Button>
-        {notice && <p className="text-sm text-emerald-500">{notice}</p>}
+        <Button type="submit" className="w-full" disabled={submitting}>
+          {submitting ? 'Creating account...' : 'Create account'}
+        </Button>
+        {serverError && (
+          <p role="alert" className="text-sm text-red-500">
+            {serverError}
+          </p>
+        )}
       </form>
 
       <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
