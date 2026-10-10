@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173"]
     database_url: str = ""
 
+    jwt_secret: str = ""
+    access_token_minutes: int = 15
+    refresh_token_days: int = 14
+    cookie_secure: bool = False
+    rate_limit_enabled: bool = True
+
 
 @lru_cache
 def get_settings() -> Settings:
