@@ -5,6 +5,7 @@ import { Button } from '../components/common/Button'
 import ConfirmDialog from '../components/common/ConfirmDialog'
 import NameDialog from '../components/editor/NameDialog'
 import ProjectCard from '../components/projects/ProjectCard'
+import NewProjectDialog from '../components/projects/NewProjectDialog'
 import {
   createProject,
   deleteProject,
@@ -74,10 +75,10 @@ export default function Dashboard() {
 
   const closeDialog = () => setDialog(null)
 
-  function handleCreate(title: string) {
+  function handleCreate(title: string, template: string) {
     closeDialog()
     void run(async () => {
-      const created = await createProject(title)
+      const created = await createProject(title, '', template)
       navigate(`/editor/${created.id}`)
     })
   }
@@ -197,14 +198,7 @@ export default function Dashboard() {
       )}
 
       {dialog?.kind === 'new' && (
-        <NameDialog
-          title="New project"
-          label="Project name"
-          submitLabel="Create"
-          validate={validateTitle}
-          onSubmit={handleCreate}
-          onClose={closeDialog}
-        />
+        <NewProjectDialog onSubmit={handleCreate} onClose={closeDialog} />
       )}
       {dialog?.kind === 'rename' && (
         <NameDialog
@@ -230,3 +224,4 @@ export default function Dashboard() {
     </div>
   )
 }
+

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Project, ProjectFile, User, Visibility
 from app.schemas.projects import CreateProjectRequest, FileIn, UpdateProjectRequest
+from app.services.templates import TEMPLATE_FILES
 
 MAX_PROJECTS_PER_USER = 50
 
@@ -101,7 +102,8 @@ def create_project(db: Session, user: User, payload: CreateProjectRequest) -> Pr
         description=payload.description,
         visibility=payload.visibility,
     )
-    project.files = [ProjectFile(file_path=p, content=c) for p, c in BLANK_FILES]
+    chosen = BLANK_FILES if payload.template == "blank" else TEMPLATE_FILES[payload.template]
+    project.files = [ProjectFile(file_path=p, content=c) for p, c in chosen]
     db.add(project)
     db.commit()
     db.refresh(project)
@@ -177,3 +179,4 @@ def save_files(db: Session, project: Project, files: list[FileIn]) -> Project:
     db.commit()
     db.refresh(project)
     return project
+

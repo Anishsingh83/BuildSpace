@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator
 
 from app.models import Project, Visibility
 from app.services.paths import validate_file_set
+from app.services.templates import TEMPLATE_IDS
 
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
 Description = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]
@@ -14,6 +15,14 @@ class CreateProjectRequest(BaseModel):
     title: Title
     description: Description = ""
     visibility: Visibility = Visibility.private
+    template: str = "blank"
+
+    @field_validator("template")
+    @classmethod
+    def known_template(cls, value: str) -> str:
+        if value not in TEMPLATE_IDS:
+            raise ValueError("Unknown template.")
+        return value
 
 
 class UpdateProjectRequest(BaseModel):
@@ -66,3 +75,4 @@ class ProjectDetail(ProjectSummary):
             for f in sorted(project.files, key=lambda f: f.file_path)
         ]
         return cls(**base, files=files)
+

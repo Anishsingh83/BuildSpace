@@ -5,10 +5,10 @@ const url = (id: string) => `/projects/${encodeURIComponent(id)}`
 
 export const listProjects = () => api<ProjectSummary[]>('/projects')
 
-export const createProject = (title: string, description = '') =>
+export const createProject = (title: string, description = '', template = 'blank') =>
   api<ProjectDetail>('/projects', {
     method: 'POST',
-    body: JSON.stringify({ title, description }),
+    body: JSON.stringify({ title, description, template }),
   })
 
 export const getProject = (id: string) => api<ProjectDetail>(url(id))
@@ -28,3 +28,4 @@ export const saveFiles = (id: string, files: ProjectFile[]) =>
     method: 'PUT',
     body: JSON.stringify({ files }),
   })
+
