@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     Enum,
     ForeignKey,
@@ -108,6 +109,7 @@ class ProjectVersion(Base):
     version_number: Mapped[int] = mapped_column(Integer)
     snapshot: Mapped[dict[str, Any]] = mapped_column(JSON)
     message: Mapped[str] = mapped_column(String(200), default="")
+    is_auto: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -133,3 +135,4 @@ class RefreshSession(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
