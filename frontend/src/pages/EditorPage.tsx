@@ -1,21 +1,30 @@
-﻿import { useEffect, useRef, useState, useCallback } from 'react'
+﻿import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Editor from '@monaco-editor/react'
-import { Files, Maximize2, Minimize2, Sparkles } from 'lucide-react'
+import { Files, History as HistoryIcon, Maximize2, Minimize2, Sparkles } from 'lucide-react'
 import FileExplorer from '../components/editor/FileExplorer'
 import EditorTabs from '../components/editor/EditorTabs'
 import EditorTopBar from '../components/editor/EditorTopBar'
 import ConsolePanel, { type LogEntry, type PanelState } from '../components/editor/ConsolePanel'
 import ChatPanel from '../components/editor/ChatPanel'
+import HistoryPanel, { type HistoryState } from '../components/editor/HistoryPanel'
 import NameDialog from '../components/editor/NameDialog'
 import ConfirmDialog from '../components/common/ConfirmDialog'
 import Splitter from '../components/common/Splitter'
 import PreviewPane from '../components/preview/PreviewPane'
 import { languageFor, type EditorFile } from '../types/editor'
 import type { ProjectDetail, Visibility } from '../types/project'
+import type { VersionDetail, VersionSummary } from '../types/versions'
 import { useTheme } from '../contexts/ThemeContext'
 import { ApiError } from '../services/api'
 import { getProject, saveFiles, updateProject } from '../services/projects'
+import {
+  createVersion,
+  deleteVersion,
+  getVersion,
+  listVersions,
+  restoreVersion,
+} from '../services/versions'
 import { isUnder, remapPath, validateNewPath, validateRename } from '../utils/paths'
 
 type DialogState =
@@ -24,9 +33,12 @@ type DialogState =
   | { kind: 'rename'; path: string; isFolder: boolean }
   | { kind: 'delete'; path: string; isFolder: boolean }
   | { kind: 'makePublic' }
+  | { kind: 'restore'; version: VersionSummary }
+  | { kind: 'deleteVersion'; version: VersionSummary }
   | null
 
 type Focus = 'none' | 'editor' | 'preview'
+type SidePanel = 'none' | 'chat' | 'history'
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong.')
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
@@ -85,13 +97,21 @@ function Workspace({ project }: { project: ProjectDetail }) {
     project.files.find((f) => f.path === 'index.html')?.path ?? project.files[0]?.path ?? ''
   const [openPaths, setOpenPaths] = useState<string[]>(firstPath ? [firstPath] : [])
   const [activePath, setActivePath] = useState(firstPath)
-  const [chatOpen, setChatOpen] = useState(false)
+  const [sidePanel, setSidePanel] = useState<SidePanel>('none')
+  const [historyState, setHistoryState] = useState<HistoryState>('normal')
+  const [historyWidth, setHistoryWidth] = useState(320)
   const [explorerOpen, setExplorerOpen] = useState(true)
   const [explorerWidth, setExplorerWidth] = useState(224)
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [dialog, setDialog] = useState<DialogState>(null)
   const [saving, setSaving] = useState(false)
   const [apiError, setApiError] = useState('')
+
+  // Version history
+  const [versions, setVersions] = useState<VersionSummary[] | null>(null)
+  const [versionError, setVersionError] = useState('')
+  const [versionBusy, setVersionBusy] = useState(false)
+  const [previewVersion, setPreviewVersion] = useState<VersionDetail | null>(null)
 
   // Layout state
   const [previewPct, setPreviewPct] = useState(50)
@@ -124,6 +144,18 @@ function Workspace({ project }: { project: ProjectDetail }) {
     return () => window.removeEventListener('beforeunload', warn)
   }, [hasUnsaved])
 
+  const refreshVersions = useCallback(async () => {
+    try {
+      setVersions(await listVersions(project.id))
+    } catch (e) {
+      setVersionError(errorText(e))
+    }
+  }, [project.id])
+
+  useEffect(() => {
+    if (sidePanel === 'history') void refreshVersions()
+  }, [sidePanel, refreshVersions])
+
   // ----- layout helpers -----
   function moveColumnSplitter(clientX: number) {
     const rect = rowRef.current?.getBoundingClientRect()
@@ -142,25 +174,26 @@ function Workspace({ project }: { project: ProjectDetail }) {
     setConsoleState((s) => (s === 'maximized' ? 'normal' : s))
   }
 
-  function toggleConsoleMinimize() {
-    setConsoleState((s) => (s === 'minimized' ? 'normal' : 'minimized'))
-  }
-
-  function toggleConsoleMaximize() {
-    setConsoleState((s) => (s === 'maximized' ? 'normal' : 'maximized'))
+  function toggleSide(panel: 'chat' | 'history') {
+    if (panel === 'history') setHistoryState('normal')
+    setSidePanel((cur) => (cur === panel ? 'none' : panel))
   }
 
   // ----- saving and project actions -----
-  async function save() {
-    if (saving || !hasUnsaved) return
+  /** Saves the files. Returns true when everything is saved (or nothing needed saving). */
+  async function save(): Promise<boolean> {
+    if (saving) return false
+    if (!hasUnsaved) return true
     const snapshot = files
     setSaving(true)
     setApiError('')
     try {
       await saveFiles(project.id, snapshot)
       setSavedContent(Object.fromEntries(snapshot.map((f) => [f.path, f.content])))
+      return true
     } catch (e) {
       setApiError(errorText(e))
+      return false
     } finally {
       setSaving(false)
     }
@@ -189,6 +222,72 @@ function Workspace({ project }: { project: ProjectDetail }) {
   function toggleVisibility() {
     if (visibility === 'private') setDialog({ kind: 'makePublic' })
     else void applyVisibility('private')
+  }
+
+  // ----- version history -----
+  async function saveVersion(message: string): Promise<boolean> {
+    setVersionError('')
+    if (!(await save())) return false
+    setVersionBusy(true)
+    try {
+      await createVersion(project.id, message)
+      await refreshVersions()
+      return true
+    } catch (e) {
+      setVersionError(errorText(e))
+      return false
+    } finally {
+      setVersionBusy(false)
+    }
+  }
+
+  async function previewVersionOf(version: VersionSummary) {
+    setVersionError('')
+    try {
+      setPreviewVersion(await getVersion(project.id, version.id))
+    } catch (e) {
+      setVersionError(errorText(e))
+    }
+  }
+
+  function applyFiles(next: EditorFile[]) {
+    setFiles(next)
+    setSavedContent(Object.fromEntries(next.map((f) => [f.path, f.content])))
+    setEmptyFolders([])
+    const first = next.find((f) => f.path === 'index.html')?.path ?? next[0]?.path ?? ''
+    setOpenPaths(first ? [first] : [])
+    setActivePath(first)
+  }
+
+  async function restoreVersionOf(version: VersionSummary) {
+    setVersionError('')
+    // Save current edits first, so the server's safety snapshot contains them.
+    if (!(await save())) {
+      setVersionError('Could not save your current changes, so nothing was restored.')
+      return
+    }
+    setVersionBusy(true)
+    try {
+      const restored = await restoreVersion(project.id, version.id)
+      applyFiles(restored.files)
+      setPreviewVersion(null)
+      await refreshVersions()
+    } catch (e) {
+      setVersionError(errorText(e))
+    } finally {
+      setVersionBusy(false)
+    }
+  }
+
+  async function deleteVersionOf(version: VersionSummary) {
+    setVersionError('')
+    try {
+      await deleteVersion(project.id, version.id)
+      setPreviewVersion((p) => (p && p.id === version.id ? null : p))
+      await refreshVersions()
+    } catch (e) {
+      setVersionError(errorText(e))
+    }
   }
 
   // ----- file operations -----
@@ -235,6 +334,10 @@ function Workspace({ project }: { project: ProjectDetail }) {
   const editorHidden = focus === 'preview'
   const previewHidden = focus === 'editor'
   const bothVisible = focus === 'none'
+  const railBtn = (active: boolean) =>
+    `rounded-md p-2 hover:bg-slate-100 dark:hover:bg-slate-800 ${
+      active ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'
+    }`
 
   return (
     <div
@@ -258,8 +361,8 @@ function Workspace({ project }: { project: ProjectDetail }) {
         saving={saving}
         onSave={() => void save()}
         visibility={visibility}
-        slug={project.slug}
         onToggleVisibility={toggleVisibility}
+        slug={project.slug}
         error={apiError}
       />
 
@@ -268,16 +371,21 @@ function Workspace({ project }: { project: ProjectDetail }) {
           <button
             aria-label="Toggle explorer"
             onClick={() => setExplorerOpen((o) => !o)}
-            className={`rounded-md p-2 hover:bg-slate-100 dark:hover:bg-slate-800 ${explorerOpen ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}
+            className={railBtn(explorerOpen)}
           >
             <Files className="h-5 w-5" />
           </button>
           <button
-            onClick={() => setChatOpen((o) => !o)}
+            aria-label="Toggle version history"
+            onClick={() => toggleSide('history')}
+            className={railBtn(sidePanel === 'history')}
+          >
+            <HistoryIcon className="h-5 w-5" />
+          </button>
+          <button
             aria-label="Toggle AI chat"
-            className={`rounded-md p-2 hover:bg-slate-100 dark:hover:bg-slate-800 ${
-              chatOpen ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'
-            }`}
+            onClick={() => toggleSide('chat')}
+            className={railBtn(sidePanel === 'chat')}
           >
             <Sparkles className="h-5 w-5" />
           </button>
@@ -298,7 +406,30 @@ function Workspace({ project }: { project: ProjectDetail }) {
           onDelete={(path, isFolder) => setDialog({ kind: 'delete', path, isFolder })}
         />
 
-        <div ref={areaRef} className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div ref={areaRef} className={`${sidePanel === 'history' && historyState === 'maximized' ? 'hidden' : 'flex'} min-h-0 min-w-0 flex-1 flex-col`}>
+          {previewVersion && (
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-sm">
+              <span>
+                Previewing version {previewVersion.version_number}. This is read-only, and your editor
+                still shows your current work.
+              </span>
+              <span className="flex gap-2">
+                <button
+                  onClick={() => setPreviewVersion(null)}
+                  className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium hover:bg-white/50 dark:border-slate-600"
+                >
+                  Back to current
+                </button>
+                <button
+                  onClick={() => setDialog({ kind: 'restore', version: previewVersion })}
+                  className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-500"
+                >
+                  Restore this version
+                </button>
+              </span>
+            </div>
+          )}
+
           {/* Top row: editor on the left, preview on the right */}
           <div
             ref={rowRef}
@@ -357,7 +488,7 @@ function Workspace({ project }: { project: ProjectDetail }) {
               className={`${previewHidden ? 'hidden' : 'flex'} min-h-0 min-w-0 flex-1 flex-col`}
             >
               <PreviewPane
-                files={files}
+                files={previewVersion ? previewVersion.files : files}
                 onLog={handleLog}
                 onReset={handleReset}
                 maximized={focus === 'preview'}
@@ -387,13 +518,51 @@ function Workspace({ project }: { project: ProjectDetail }) {
               logs={logs}
               onClear={handleReset}
               state={consoleState}
-              onToggleMinimize={toggleConsoleMinimize}
-              onToggleMaximize={toggleConsoleMaximize}
+              onToggleMinimize={() =>
+                setConsoleState((s) => (s === 'minimized' ? 'normal' : 'minimized'))
+              }
+              onToggleMaximize={() =>
+                setConsoleState((s) => (s === 'maximized' ? 'normal' : 'maximized'))
+              }
             />
           </div>
         </div>
 
-        {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
+        {sidePanel === 'chat' && <ChatPanel onClose={() => setSidePanel('none')} />}
+        {sidePanel === 'history' && historyState === 'normal' && (
+          <Splitter
+            direction="col"
+            label="Resize history panel"
+            onMove={(x) => setHistoryWidth(clamp(window.innerWidth - x, 220, 600))}
+            onNudge={(step) => setHistoryWidth((w) => clamp(w + step * 8, 220, 600))}
+          />
+        )}
+        {sidePanel === 'history' && (
+          <div
+            className={
+              historyState === 'maximized'
+                ? 'flex min-h-0 min-w-0 flex-1'
+                : historyState === 'normal'
+                  ? 'flex min-h-0 shrink-0'
+                  : 'flex min-h-0 shrink-0'
+            }
+            style={historyState === 'normal' ? { width: historyWidth } : undefined}
+          >
+          <HistoryPanel
+            state={historyState}
+            onStateChange={setHistoryState}
+            versions={versions}
+            error={versionError}
+            busy={versionBusy}
+            previewId={previewVersion?.id ?? null}
+            onSave={saveVersion}
+            onPreview={(v) => void previewVersionOf(v)}
+            onRestore={(v) => setDialog({ kind: 'restore', version: v })}
+            onDelete={(v) => setDialog({ kind: 'deleteVersion', version: v })}
+            onClose={() => setSidePanel('none')}
+          />
+          </div>
+        )}
       </div>
 
       {dialog?.kind === 'newFile' && (
@@ -466,6 +635,33 @@ function Workspace({ project }: { project: ProjectDetail }) {
           confirmLabel="Make public"
           onConfirm={() => {
             void applyVisibility('public')
+            closeDialog()
+          }}
+          onClose={closeDialog}
+        />
+      )}
+
+      {dialog?.kind === 'restore' && (
+        <ConfirmDialog
+          title={`Restore version ${dialog.version.version_number}?`}
+          message="Your current files will be saved as an automatic version first, so you can undo this from the History list."
+          confirmLabel="Restore"
+          onConfirm={() => {
+            void restoreVersionOf(dialog.version)
+            closeDialog()
+          }}
+          onClose={closeDialog}
+        />
+      )}
+
+      {dialog?.kind === 'deleteVersion' && (
+        <ConfirmDialog
+          title={`Delete version ${dialog.version.version_number}?`}
+          message="This version will be removed from the history. Your current files are not affected."
+          confirmLabel="Delete"
+          danger
+          onConfirm={() => {
+            void deleteVersionOf(dialog.version)
             closeDialog()
           }}
           onClose={closeDialog}
