@@ -19,6 +19,25 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     rate_limit_enabled: bool = True
 
+    @property
+    def is_production(self) -> bool:
+        return self.environment.strip().lower() == "production"
+
+    def production_problems(self) -> list[str]:
+        """Reasons this configuration is unsafe for production (empty means fine)."""
+        problems: list[str] = []
+        if len(self.jwt_secret) < 32 or "CHANGE_ME" in self.jwt_secret.upper():
+            problems.append("JWT_SECRET must be a random string of 32+ characters")
+        if not self.database_url:
+            problems.append("DATABASE_URL is not set")
+        if not self.cookie_secure:
+            problems.append("COOKIE_SECURE must be true (HTTPS only)")
+        if not self.rate_limit_enabled:
+            problems.append("RATE_LIMIT_ENABLED must be true")
+        if not self.cors_origins or any(not o.startswith("https://") for o in self.cors_origins):
+            problems.append("CORS_ORIGINS must list https:// origins only")
+        return problems
+
 
 @lru_cache
 def get_settings() -> Settings:
