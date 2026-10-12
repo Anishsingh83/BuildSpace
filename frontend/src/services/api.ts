@@ -23,6 +23,8 @@ export class ApiError extends Error {
 }
 
 async function errorMessage(res: Response): Promise<string> {
+  if (res.status === 429) return 'Too many requests. Please wait a moment and try again.'
+  if (res.status === 413) return 'That is too large to send. Try a smaller file or fewer files.'
   try {
     const data = await res.json()
     if (typeof data.detail === 'string') return data.detail
@@ -79,3 +81,4 @@ export async function api<T>(path: string, options: RequestInit = {}, retry = tr
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
+

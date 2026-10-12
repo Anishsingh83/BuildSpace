@@ -1,5 +1,24 @@
 ﻿import type { EditorFile } from '../types/editor'
 
+// Content-Security-Policy for the preview document. Sandboxed project code cannot make network
+// requests (fetch, XHR, WebSocket), submit forms or open frames. Images, fonts, styles and scripts
+// from a few public CDNs still load. Edit this one constant to loosen or tighten the policy.
+const PREVIEW_CSP = [
+  "default-src 'none'",
+  "script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com",
+  "style-src 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
+  "font-src data: https://fonts.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
+  'img-src data: blob: https:',
+  'media-src data: blob:',
+  "connect-src 'none'",
+  "form-action 'none'",
+  "frame-src 'none'",
+  "base-uri 'none'",
+  "object-src 'none'",
+].join('; ')
+
+const CSP_META = `<meta http-equiv="Content-Security-Policy" content="${PREVIEW_CSP}">`
+
 // Injected into the preview. Forwards console output and errors to the parent window.
 const BRIDGE = `<script>
 (function () {
@@ -26,6 +45,9 @@ const BRIDGE = `<script>
   });
 })();
 </script>`
+
+// The policy must come first: a meta CSP only affects content that follows it.
+const PREAMBLE = CSP_META + BRIDGE
 
 function escapeScript(code: string): string {
   return code.replace(/<\/script/gi, '<\\/script')
@@ -54,8 +76,9 @@ export function buildSrcDoc(files: EditorFile[]): string {
     },
   )
 
-  if (/<head[^>]*>/i.test(html)) {
-    return html.replace(/<head[^>]*>/i, (match) => match + BRIDGE)
+  // "<head>" or "<head ...>", but not "<header>".
+  if (/<head(\s[^>]*)?>/i.test(html)) {
+    return html.replace(/<head(\s[^>]*)?>/i, (match) => match + PREAMBLE)
   }
-  return BRIDGE + html
+  return PREAMBLE + html
 }
