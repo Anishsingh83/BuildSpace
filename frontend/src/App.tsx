@@ -5,6 +5,7 @@ import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import Dashboard from './pages/Dashboard'
+import Settings from './pages/Settings'
 import Gallery from './pages/Gallery'
 import NotFound from './pages/NotFound'
 import EditorPage from './pages/EditorPage'
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="/gallery" element={<Gallery />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/settings" element={<Settings />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Route>

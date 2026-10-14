@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.api.routes import auth, projects, public, templates, versions
+from app.api.routes import account, auth, projects, public, templates, versions
 from app.core.config import get_settings
 from app.core.limiter import limiter
 from app.core.logging_config import install_redaction
@@ -60,6 +60,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(account.router, prefix="/api/v1")
 app.include_router(projects.router, prefix="/api/v1")
 app.include_router(public.router, prefix="/api/v1")
 app.include_router(versions.router, prefix="/api/v1")
@@ -69,4 +70,5 @@ app.include_router(templates.router, prefix="/api/v1")
 @app.get("/api/v1/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "environment": settings.environment}
+
 

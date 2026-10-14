@@ -33,7 +33,7 @@ export default function Navbar() {
           {user ? (
             <>
               <NavLink to="/dashboard" className={linkClass}>Dashboard</NavLink>
-              <span className="text-sm text-slate-500">@{user.username}</span>
+              <NavLink to="/settings" className={linkClass}>@{user.username}</NavLink>
               <button
                 onClick={handleLogout}
                 className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
@@ -65,4 +65,3 @@ export default function Navbar() {
     </header>
   )
 }
-

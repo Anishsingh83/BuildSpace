@@ -8,6 +8,11 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>
   register: (username: string, email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  /** Use a session the server just issued (for example after a password change). */
+  adoptSession: (data: TokenResponse) => void
+  updateUser: (user: User) => void
+  /** Forget the session locally, without calling the server (after the account is deleted). */
+  clearSession: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -36,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const applySession = useCallback((data: TokenResponse) => {
+  const adoptSession = useCallback((data: TokenResponse) => {
     setAccessToken(data.access_token)
     setUser(data.user)
   }, [])
@@ -47,9 +52,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       })
-      applySession(data)
+      adoptSession(data)
     },
-    [applySession],
+    [adoptSession],
   )
 
   const register = useCallback(
@@ -58,22 +63,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: 'POST',
         body: JSON.stringify({ username, email, password }),
       })
-      applySession(data)
+      adoptSession(data)
     },
-    [applySession],
+    [adoptSession],
   )
+
+  const clearSession = useCallback(() => {
+    setAccessToken(null)
+    setUser(null)
+  }, [])
 
   const logout = useCallback(async () => {
     try {
       await api<void>('/auth/logout', { method: 'POST' })
     } finally {
-      setAccessToken(null)
-      setUser(null)
+      clearSession()
     }
-  }, [])
+  }, [clearSession])
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, register, logout, adoptSession, updateUser: setUser, clearSession }}
+    >
       {children}
     </AuthContext.Provider>
   )
