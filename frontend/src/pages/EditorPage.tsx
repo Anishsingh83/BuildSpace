@@ -152,10 +152,6 @@ function Workspace({ project }: { project: ProjectDetail }) {
     }
   }, [project.id])
 
-  useEffect(() => {
-    if (sidePanel === 'history') void refreshVersions()
-  }, [sidePanel, refreshVersions])
-
   // ----- layout helpers -----
   function moveColumnSplitter(clientX: number) {
     const rect = rowRef.current?.getBoundingClientRect()
@@ -175,7 +171,10 @@ function Workspace({ project }: { project: ProjectDetail }) {
   }
 
   function toggleSide(panel: 'chat' | 'history') {
-    if (panel === 'history') setHistoryState('normal')
+    if (panel === 'history') {
+      setHistoryState('normal')
+      if (sidePanel !== 'history') void refreshVersions()
+    }
     setSidePanel((cur) => (cur === panel ? 'none' : panel))
   }
 
@@ -670,5 +669,6 @@ function Workspace({ project }: { project: ProjectDetail }) {
     </div>
   )
 }
+
 
 

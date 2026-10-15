@@ -26,3 +26,6 @@ Thumbs.db
 # Logs and local data
 *.log
 postgres_data/
+
+playwright-report/
+test-results/

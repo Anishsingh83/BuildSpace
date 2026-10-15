@@ -91,7 +91,7 @@ export default function PreviewPane({ files, onLog, onReset, maximized, onToggle
           key={reloadKey}
           ref={iframeRef}
           title="Project preview"
-          sandbox="allow-scripts"
+          sandbox="allow-scripts allow-forms"
           srcDoc={srcDoc}
           className="h-full max-w-full bg-white"
           style={{ width: widths[device] }}
@@ -100,3 +100,4 @@ export default function PreviewPane({ files, onLog, onReset, maximized, onToggle
     </div>
   )
 }
+

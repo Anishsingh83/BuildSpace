@@ -22,3 +22,10 @@ Project code is written by users, so it is untrusted. It runs only inside the pr
   The tab is the only thing affected; BuildSpace servers never run user code.
 - `alert()` is replaced by a console message, because modals are blocked in the sandbox.
 - The preview is built in the browser from stored files. The backend never executes project code.
+
+## Update: forms
+
+The sandbox is now `allow-scripts allow-forms`. Without `allow-forms`, browsers do not run a form's
+`submit` handler, which broke ordinary projects (the To-do and Landing templates). Actual form
+submissions are still blocked by `form-action 'none'` in the preview document's CSP, so a form
+cannot send data anywhere. `allow-same-origin`, popups, top navigation and modals remain off.
